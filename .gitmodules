@@ -1,0 +1,3 @@
+[submodule "CMXsafe"]
+	path = CMXsafe
+	url = git@github.com:jdhozdiego/CMXsafe-ESP32.git
