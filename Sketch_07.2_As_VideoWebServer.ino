@@ -8,6 +8,7 @@
 #include <WiFi.h>
 #include "sd_read_write.h"
 
+#include "cpu-test.h" 
 #include "CMXsafe/settings.h"
 #include "CMXsafe/cmxsafe.h"
 #include "CMXsafe/fw_ports.h"
@@ -55,6 +56,7 @@ void setup() {
   xTaskCreatePinnedToCore(ssh_port_forwarding_task, "SSH Port Forwarding Task3", 10500, &otaPort, 5, NULL, 1);
   xTaskCreatePinnedToCore(ssh_port_forwarding_task, "SSH Port Forwarding Task4", 10500, &attestationPort, 5, NULL, 1);
   setup_sm();
+  xTaskCreatePinnedToCore(idleTask,"Idle Task",1024, NULL,4,NULL,1);
 
   int paramAttest = 5;
   remoteAttest::setup_remoteAttest(&paramAttest);
@@ -64,9 +66,42 @@ void setup() {
   Serial.println("' to connect");
 }
 
+//Used to monitor RAM and ROM usage
+uint32_t totalFlash;
+uint32_t usedFlash;
+uint32_t freeFlash;
+
 void loop() {
   // put your main code here, to run repeatedly:
   delay(10000);
+        if (psramFound()) {
+        Serial.println("PSRAM is available!");
+        Serial.printf("Total PSRAM: %d bytes\n", ESP.getPsramSize());
+        Serial.printf("Free PSRAM: %d bytes\n", ESP.getFreePsram());
+    } else {
+        Serial.println("PSRAM is not available on this board.");
+    }
+
+    // Display ROM size information
+    Serial.printf("Total Flash Memory: %d bytes\n", ESP.getFlashChipSize());
+    Serial.printf("Chip Revision: %d\n", ESP.getChipRevision());
+    Serial.printf("Chip Model: %s\n", ESP.getChipModel());
+    Serial.printf("Chip Cores: %d\n", ESP.getChipCores());
+    Serial.printf("Total Heap: %d bytes\n", ESP.getHeapSize());
+    Serial.printf("Free Heap: %d bytes\n", ESP.getFreeHeap());
+    Serial.printf("Min Free Heap: %d bytes\n", ESP.getMinFreeHeap());
+    Serial.printf("Max Alloc Heap: %d bytes\n", ESP.getMaxAllocHeap());
+
+    totalFlash = ESP.getFlashChipSize();
+    usedFlash = ESP.getSketchSize();
+    freeFlash = totalFlash - usedFlash;
+
+    Serial.printf("Total Flash Memory: %u bytes\n", totalFlash);
+    Serial.printf("Used Flash Memory (ROM + Code): %u bytes\n", usedFlash);
+    Serial.printf("Free Flash Memory: %u bytes\n", freeFlash);
+
+    measure_idle_cpu();
+ 
 }
 
 void cameraInit(void){
@@ -90,11 +125,11 @@ void cameraInit(void){
   config.pin_pwdn = PWDN_GPIO_NUM;
   config.pin_reset = RESET_GPIO_NUM;
   config.xclk_freq_hz = 10000000;
-  config.frame_size = FRAMESIZE_UXGA;
+  config.frame_size = FRAMESIZE_CIF;
   config.pixel_format = PIXFORMAT_JPEG; // for streaming
   config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
   config.fb_location = CAMERA_FB_IN_PSRAM;
-  config.jpeg_quality = 12;
+  config.jpeg_quality = 10;
   config.fb_count = 1;
   
   // if PSRAM IC present, init with UXGA resolution and higher JPEG quality
@@ -105,7 +140,7 @@ void cameraInit(void){
     config.grab_mode = CAMERA_GRAB_LATEST;
   } else {
     // Limit the frame size when PSRAM is not available
-    config.frame_size = FRAMESIZE_SVGA;
+    config.frame_size = FRAMESIZE_CIF;
     config.fb_location = CAMERA_FB_IN_DRAM;
   }
 
