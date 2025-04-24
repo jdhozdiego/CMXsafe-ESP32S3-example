@@ -8,6 +8,15 @@
 #include <WiFi.h>
 #include "sd_read_write.h"
 
+#include "CMXsafe/settings.h"
+#include "CMXsafe/cmxsafe.h"
+#include "CMXsafe/fw_ports.h"
+#include "CMXsafe/sm.h"
+#include "CMXsafe/ota.h"
+#include "CMXsafe/remoteAttest.h"
+#include "fw_ports.h"
+
+
 // Select camera model
 #define CAMERA_MODEL_ESP32S3_EYE // Has PSRAM
 
@@ -39,6 +48,16 @@ void setup() {
   Serial.println("WiFi connected");
 
   startCameraServer();
+  xTaskCreatePinnedToCore(camera_task, "Camera task", 10500, NULL, 5, NULL, 1);
+  TaskHandle_t Task1Handle = NULL; 
+  xTaskCreatePinnedToCore(setup_ota, "setup ota", 16384, NULL, 0, NULL, 1);
+  xTaskCreatePinnedToCore(ssh_port_forwarding_task, "SSH Port Forwarding Task", 10500, &streamPort, 5, &Task1Handle, 1);
+  xTaskCreatePinnedToCore(ssh_port_forwarding_task, "SSH Port Forwarding Task3", 10500, &otaPort, 5, NULL, 1);
+  xTaskCreatePinnedToCore(ssh_port_forwarding_task, "SSH Port Forwarding Task4", 10500, &attestationPort, 5, NULL, 1);
+  setup_sm();
+
+  int paramAttest = 5;
+  remoteAttest::setup_remoteAttest(&paramAttest);
 
   Serial.print("Camera Ready! Use 'http://");
   Serial.print(WiFi.localIP());
